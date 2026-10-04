@@ -60,31 +60,50 @@ POW_CALLS = 20_000    # вызовов binary_pow на один замер: ин
 
 
 def array_sum(a: list[int]) -> int:
-    """Сумма элементов массива. Ожидаемая сложность: TODO (обосновать в отчёте)."""
-    # TODO: реализовать циклом
-    raise NotImplementedError
+    """Сумма элементов массива. Ожидаемая сложность: O(n)."""
+    total = 0
+    for x in a:
+        total += x
+    return total
 
 
 def array_max(a: list[int]) -> int:
-    """Максимум массива (массив непуст). Ожидаемая сложность: TODO."""
-    # TODO: реализовать циклом
-    raise NotImplementedError
+    """Максимум массива (массив непуст). Ожидаемая сложность: O(n)."""
+    if not a:
+        raise ValueError("array_max() arg is an empty sequence")
+    max_val = a[0]
+    for x in a[1:]:
+        if x > max_val:
+            max_val = x
+    return max_val
 
 
 def count_equal_pairs(a: list[int]) -> int:
-    """Число пар (i, j), i < j, таких что a[i] == a[j]. Ожидаемая сложность: TODO."""
-    # TODO: реализовать двойным циклом
-    raise NotImplementedError
+    """Число пар (i, j), i < j, таких что a[i] == a[j]. Ожидаемая сложность: O(n^2)."""
+    count = 0
+    n = len(a)
+    for i in range(n):
+        for j in range(i + 1, n):
+            if a[i] == a[j]:
+                count += 1
+    return count
 
 
 def binary_pow(x: int, n: int, mod: int | None = None) -> int:
-    """Бинарное возведение в степень, n >= 0. Ожидаемая сложность: TODO.
+    """Бинарное возведение в степень, n >= 0. Ожидаемая сложность: O(log n).
 
     При заданном mod все умножения выполняются по модулю (результат x**n % mod).
     """
-    # TODO: реализовать через квадрирование; при mod применять % mod после
-    # каждого умножения
-    raise NotImplementedError
+    if n < 0:
+        raise ValueError("Показатель степени n должен быть неотрицательным")
+    result = 1 if mod is None else 1 % mod
+    base = x if mod is None else x % mod
+    while n > 0:
+        if n & 1:
+            result = result * base if mod is None else (result * base) % mod
+        base = base * base if mod is None else (base * base) % mod
+        n >>= 1
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -169,8 +188,41 @@ def self_check() -> None:
         x, n = rng.randint(2, 50), rng.randint(0, 64)
         assert binary_pow(x, n, mod=POW_MOD) == pow(x, n, POW_MOD)
 
-    # TODO: добавить собственные проверки инвариантов и описать их в отчёте
-    # (например: count_equal_pairs на массиве из попарно различных элементов = 0).
+    # Проверки инвариантов
+    # 1. Инвариант count_equal_pairs: на массиве из попарно различных элементов число пар равно 0
+    distinct = list(range(100))
+    if count_equal_pairs(distinct) != 0:
+        raise AssertionError("Инвариант нарушен: count_equal_pairs на попарно различных элементах != 0")
+
+    # 2. Инвариант count_equal_pairs: на массиве из k одинаковых элементов число пар равно k * (k - 1) // 2
+    for k in (2, 5, 10, 20):
+        same = [42] * k
+        expected_pairs = k * (k - 1) // 2
+        if count_equal_pairs(same) != expected_pairs:
+            raise AssertionError(f"Инвариант нарушен: count_equal_pairs на {k} одинаковых элементах != {expected_pairs}")
+
+    # 3. Инвариант array_sum: сумма k одинаковых элементов c равна k * c
+    for k in (0, 1, 10, 50):
+        c = 17
+        if array_sum([c] * k) != k * c:
+            raise AssertionError(f"Инвариант нарушен: array_sum на {k} элементах со значением {c} != {k * c}")
+
+    # 4. Инвариант array_max: на невозрастающем массиве максимум равен первому элементу,
+    # на неубывающем — последнему
+    rev = list(range(50, 0, -1))
+    fwd = list(range(1, 51))
+    if array_max(rev) != rev[0]:
+        raise AssertionError("Инвариант нарушен: array_max на невозрастающем массиве != rev[0]")
+    if array_max(fwd) != fwd[-1]:
+        raise AssertionError("Инвариант нарушен: array_max на неубывающем массиве != fwd[-1]")
+
+    # 5. Инвариант binary_pow: мультипликативное свойство x^(a+b) == x^a * x^b (mod m)
+    for a_exp, b_exp in ((3, 5), (10, 20), (7, 13)):
+        val_ab = binary_pow(3, a_exp + b_exp, mod=POW_MOD)
+        val_mul = (binary_pow(3, a_exp, mod=POW_MOD) * binary_pow(3, b_exp, mod=POW_MOD)) % POW_MOD
+        if val_ab != val_mul:
+            raise AssertionError("Инвариант нарушен: binary_pow мультипликативное свойство")
+
     print("self_check: OK")
 
 
