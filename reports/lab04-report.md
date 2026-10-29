@@ -6,6 +6,7 @@
 **КИМ:** [КИМ-04](../M2-sorting/kim-04-mergesort-linear-heapsort.md)  
 **Рубрика:** [Рубрика-04](../M2-sorting/rubric-04-mergesort-linear-heapsort.md)  
 **Вариант:** 21 (`seed = 30 + 21 = 51`)  
+**Материалы для сдачи:** [Руководство по защите и шпаргалка для комиссии](lab04-defense-guide.md)  
 
 ---
 

@@ -6,6 +6,7 @@
 **КИМ:** [КИМ-03](../M2-sorting/kim-03-simple-sorts-quicksort.md)  
 **Рубрика:** [Рубрика-03](../M2-sorting/rubric-03-simple-sorts-quicksort.md)  
 **Вариант:** 21 (`seed = 30 + 21 = 51`)  
+**Материалы для сдачи:** [Руководство по защите и шпаргалка для комиссии](lab03-defense-guide.md)  
 
 ---
 
