@@ -1,26 +1,40 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""ЛР 6. Линейный, бинарный и интерполяционный поиск — стартовая заготовка.
+"""ЛР 6. Линейный, бинарный и интерполяционный поиск: сравнение.
 
-Заготовка — это каркас, а не решение: заполните все TODO самостоятельно
-в соответствии с КИМ-06 и правилами использования генеративного ИИ
-(docs/ai-verification.md).
+Реализация трёх алгоритмов поиска ключа в отсортированном массиве:
+- линейного (linear_search) со счётчиком сравнений;
+- бинарного (binary_search) с поддержкой инварианта границ lo/hi;
+- интерполяционного (interpolation_search) с защитой от деления на ноль
+  и выхода ключа за границы диапазона [a[lo], a[hi]].
 
 Каждая функция поиска работает с отсортированным по неубыванию массивом
-и возвращает пару (индекс найденного элемента или -1, число сравнений ключей).
+и возвращает пару: (индекс найденного элемента или -1, число сравнений ключей).
 
-Запуск: python lab06-search-starter.py --variant N
+Запуск:
+    python lab06-search-starter.py --variant 21
+    python lab06-search-starter.py --variant 21 --out ../../reports/images
 """
 from __future__ import annotations
 
 import argparse
 import bisect
+import math
+from pathlib import Path
 import random
 import statistics
+import sys
 import time
 
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+
+
 # ---------------------------------------------------------------------------
-# 1. Алгоритмы поиска (реализуются вручную, без in/index/bisect в основной части)
+# 1. Алгоритмы поиска (ручная реализация без in/index/bisect в основной части)
 # ---------------------------------------------------------------------------
 
 
@@ -28,23 +42,50 @@ def linear_search(a: list[int], key: int) -> tuple[int, int]:
     """Линейный поиск первого вхождения key.
 
     Возвращает (индекс первого вхождения или -1, число сравнений ключей).
-    Ожидаемая сложность: TODO (обосновать в отчёте).
+    Временная сложность:
+        - Худший случай: O(n) — ключ отсутствует или расположен в конце массива;
+        - Средний случай: O(n) (в среднем n / 2 сравнений при равномерном поиске);
+        - Лучший случай: O(1) — искомый ключ находится на первой позиции a[0].
+    Пространственная сложность: O(1) вспомогательной памяти.
     """
-    # TODO: реализовать проход слева направо со счётчиком сравнений
-    raise NotImplementedError
+    cmp_count = 0
+    for i, x in enumerate(a):
+        cmp_count += 1
+        if x == key:
+            return i, cmp_count
+    return -1, cmp_count
 
 
 def binary_search(a: list[int], key: int) -> tuple[int, int]:
     """Бинарный поиск key в отсортированном массиве.
 
     Возвращает (индекс любого вхождения или -1, число сравнений ключей).
-    Аккуратно поддерживайте инвариант обеих границ lo и hi: искомый элемент,
-    если он есть, всегда лежит в текущем отрезке; цикл обязан завершаться.
-    Ожидаемая сложность: TODO.
+    Инвариант цикла:
+        Если искомый ключ key содержится в массиве a, то он гарантированно
+        находится в текущем диапазоне индексов a[lo..hi].
+        При каждом шаге длина отрезка строго уменьшается: новый диапазон
+        составляет либо [lo, mid - 1], либо [mid + 1, hi], где mid лежит строго
+        внутри [lo, hi]. Это строго гарантирует завершение цикла за не более чем
+        ceil(log2(n + 1)) шагов без зацикливания.
+    Временная сложность:
+        - Худший случай: O(log n);
+        - Средний случай: O(log n);
+        - Лучший случай: O(1) — ключ совпал с центральным элементом на первом шаге.
+    Пространственная сложность: O(1) вспомогательной памяти.
     """
-    # TODO: реализовать через инвариант границ lo <= hi (или lo < hi — но
-    # TODO: тогда согласовать вычисление mid и сужение отрезка!)
-    raise NotImplementedError
+    lo = 0
+    hi = len(a) - 1
+    cmp_count = 0
+    while lo <= hi:
+        mid = lo + (hi - lo) // 2
+        cmp_count += 1
+        if a[mid] == key:
+            return mid, cmp_count
+        elif a[mid] < key:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1, cmp_count
 
 
 def interpolation_search(a: list[int], key: int) -> tuple[int, int]:
@@ -52,11 +93,55 @@ def interpolation_search(a: list[int], key: int) -> tuple[int, int]:
 
     Возвращает (индекс любого вхождения или -1, число сравнений ключей).
     Позиция зонда: mid = lo + (key - a[lo]) * (hi - lo) // (a[hi] - a[lo]).
-    Обязательно защититься от деления на ноль при a[hi] == a[lo] и от выхода
-    key за пределы [a[lo], a[hi]]. Средняя сложность на равномерных данных: TODO.
+    Инвариант и защита от деления на ноль / выхода за границы:
+        1. Если key < a[lo] или key > a[hi], ключ заведомо отсутствует
+           в отсортированном подотрезке [a[lo], a[hi]], завершение за O(1).
+        2. Если a[lo] == a[hi], знаменатель интерполяционной формулы равен 0.
+           Так как массив отсортирован, все элементы на отрезке [lo, hi] равны a[lo].
+           Следовательно, ключ найден, если key == a[lo], иначе отсутствует.
+        3. Так как a[lo] <= key <= a[hi] и a[lo] < a[hi], вычисленный индекс mid
+           гарантированно попадает в диапазон [lo, hi]. При каждом шаге границы
+           строго смещаются (lo = mid + 1 либо hi = mid - 1), обеспечивая сходимость.
+    Временная сложность:
+        - Средний случай на равномерных данных: O(log log n);
+        - Худший случай: O(n) — на неравномерных (например, экспоненциальных) данных,
+          где сгущение значений приводит к медленному продвижению зонда;
+        - Лучший случай: O(1) — попадание в целевой ключ на первом шаге.
+    Пространственная сложность: O(1) вспомогательной памяти.
     """
-    # TODO: реализовать с зондом по формуле интерполяции и счётчиком сравнений
-    raise NotImplementedError
+    if not a:
+        return -1, 0
+
+    lo = 0
+    hi = len(a) - 1
+    cmp_count = 0
+
+    while lo <= hi:
+        cmp_count += 1
+        if key < a[lo]:
+            return -1, cmp_count
+
+        cmp_count += 1
+        if key > a[hi]:
+            return -1, cmp_count
+
+        if a[lo] == a[hi]:
+            cmp_count += 1
+            if a[lo] == key:
+                return lo, cmp_count
+            return -1, cmp_count
+
+        mid = lo + (key - a[lo]) * (hi - lo) // (a[hi] - a[lo])
+
+        cmp_count += 1
+        if a[mid] == key:
+            return mid, cmp_count
+        elif a[mid] < key:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    return -1, cmp_count
 
 
 # ---------------------------------------------------------------------------
@@ -167,10 +252,193 @@ def mean_comparisons(fn, a: list[int], keys: list[int]) -> float:
     return statistics.mean(fn(a, k)[1] for k in keys)
 
 
-def run_benchmarks(seed: int) -> None:
+def plot_results(data: dict, out_dir: Path) -> None:
+    """Построение графиков 'сравнения от n' и 'время от n'."""
+    if not MATPLOTLIB_AVAILABLE:
+        print("Matplotlib не установлен, пропуск построения графиков.")
+        return
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    plt.rcParams.update({"font.size": 10, "figure.autolayout": True})
+
+    # Цветовая гамма и стили линий
+    colors = {
+        "linear": "#d62728",         # красный
+        "binary": "#1f77b4",         # синий
+        "interpolation": "#2ca02c",  # зелёный
+    }
+    markers = {
+        "linear": "s",
+        "binary": "o",
+        "interpolation": "^",
+    }
+
+    # -----------------------------------------------------------------------
+    # График 1: Число сравнений от n (4 панели)
+    # -----------------------------------------------------------------------
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # (0, 0): Равномерное распределение — все алгоритмы (лог по x и y)
+    ax = axes[0, 0]
+    for name in ("linear", "binary", "interpolation"):
+        sizes_p = data["uniform"][name][True]["sizes"]
+        cmps_p = data["uniform"][name][True]["cmps"]
+        ax.plot(sizes_p, cmps_p, marker=markers[name], color=colors[name],
+                linewidth=2, label=f"{name} (есть)")
+        sizes_m = data["uniform"][name][False]["sizes"]
+        cmps_m = data["uniform"][name][False]["cmps"]
+        ax.plot(sizes_m, cmps_m, marker=markers[name], color=colors[name],
+                linestyle="--", linewidth=1.5, alpha=0.7, label=f"{name} (нет)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Размер массива n (log)", fontsize=11)
+    ax.set_ylabel("Среднее число сравнений (log)", fontsize=11)
+    ax.set_title("Равномерное распределение: все алгоритмы", fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend(fontsize=8, loc="upper left")
+
+    # (0, 1): Равномерное распределение — зум Binary vs Interpolation
+    ax = axes[0, 1]
+    for name in ("binary", "interpolation"):
+        sizes_p = data["uniform"][name][True]["sizes"]
+        cmps_p = data["uniform"][name][True]["cmps"]
+        ax.plot(sizes_p, cmps_p, marker=markers[name], color=colors[name],
+                linewidth=2.2, label=f"{name} (есть)")
+        sizes_m = data["uniform"][name][False]["sizes"]
+        cmps_m = data["uniform"][name][False]["cmps"]
+        ax.plot(sizes_m, cmps_m, marker=markers[name], color=colors[name],
+                linestyle="--", linewidth=1.8, alpha=0.8, label=f"{name} (нет)")
+    # Теоретические кривые для справки
+    ref_n = SIZES
+    theory_bin = [math.log2(n) for n in ref_n]
+    theory_interp = [math.log2(max(1.0, math.log2(n))) * 3.0 for n in ref_n]
+    ax.plot(ref_n, theory_bin, ":", color="navy", alpha=0.5, label="Теория $O(\\log n)$")
+    ax.plot(ref_n, theory_interp, ":", color="darkgreen", alpha=0.5, label="Теория $O(\\log \\log n)$")
+    ax.set_xscale("log")
+    ax.set_xlabel("Размер массива n (log)", fontsize=11)
+    ax.set_ylabel("Среднее число сравнений", fontsize=11)
+    ax.set_title("Равномерное распределение: Binary vs Interpolation\n($O(\\log n)$ против $O(\\log\\log n)$)",
+                 fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend(fontsize=8, loc="upper left")
+
+    # (1, 0): Экспоненциальное распределение — все алгоритмы
+    ax = axes[1, 0]
+    for name in ("linear", "binary", "interpolation"):
+        sizes_p = data["exponential"][name][True]["sizes"]
+        cmps_p = data["exponential"][name][True]["cmps"]
+        ax.plot(sizes_p, cmps_p, marker=markers[name], color=colors[name],
+                linewidth=2, label=f"{name} (есть)")
+        sizes_m = data["exponential"][name][False]["sizes"]
+        cmps_m = data["exponential"][name][False]["cmps"]
+        ax.plot(sizes_m, cmps_m, marker=markers[name], color=colors[name],
+                linestyle="--", linewidth=1.5, alpha=0.7, label=f"{name} (нет)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Размер массива n (log)", fontsize=11)
+    ax.set_ylabel("Среднее число сравнений (log)", fontsize=11)
+    ax.set_title("Экспоненциальное распределение: все алгоритмы", fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend(fontsize=8, loc="upper left")
+
+    # (1, 1): Экспоненциальное распределение — деградация Interpolation vs Binary
+    ax = axes[1, 1]
+    for name in ("binary", "interpolation"):
+        sizes_p = data["exponential"][name][True]["sizes"]
+        cmps_p = data["exponential"][name][True]["cmps"]
+        ax.plot(sizes_p, cmps_p, marker=markers[name], color=colors[name],
+                linewidth=2.2, label=f"{name} (есть)")
+        sizes_m = data["exponential"][name][False]["sizes"]
+        cmps_m = data["exponential"][name][False]["cmps"]
+        ax.plot(sizes_m, cmps_m, marker=markers[name], color=colors[name],
+                linestyle="--", linewidth=1.8, alpha=0.8, label=f"{name} (нет)")
+    ax.set_xscale("log")
+    ax.set_xlabel("Размер массива n (log)", fontsize=11)
+    ax.set_ylabel("Среднее число сравнений", fontsize=11)
+    ax.set_title("Деградация интерполяционного поиска при экспоненциальном сгущении\n(рост сравнений до >200)",
+                 fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend(fontsize=8, loc="upper left")
+
+    p1 = out_dir / "lab06_comparisons.png"
+    fig.savefig(p1, dpi=160)
+    plt.close(fig)
+    print(f"График сравнений сохранён: {p1}")
+
+    # -----------------------------------------------------------------------
+    # График 2: Время выполнения серии поисков от n (2 панели)
+    # -----------------------------------------------------------------------
+    fig2, axes2 = plt.subplots(1, 2, figsize=(14, 5.5))
+
+    # (0): Время на равномерном распределении (log-log)
+    ax = axes2[0]
+    for name in ("linear", "binary", "interpolation"):
+        sizes_p = data["uniform"][name][True]["sizes"]
+        times_p = data["uniform"][name][True]["times"]
+        ax.plot(sizes_p, times_p, marker=markers[name], color=colors[name],
+                linewidth=2, label=f"{name} (есть)")
+        sizes_m = data["uniform"][name][False]["sizes"]
+        times_m = data["uniform"][name][False]["times"]
+        ax.plot(sizes_m, times_m, marker=markers[name], color=colors[name],
+                linestyle="--", linewidth=1.5, alpha=0.7, label=f"{name} (нет)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Размер массива n (log)", fontsize=11)
+    ax.set_ylabel("Медиана времени серии (с, log)", fontsize=11)
+    ax.set_title("Время серии поисков (200 ключей): Равномерное распределение",
+                 fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend(fontsize=8, loc="upper left")
+
+    # (1): Время на экспоненциальном распределении (log-log)
+    ax = axes2[1]
+    for name in ("linear", "binary", "interpolation"):
+        sizes_p = data["exponential"][name][True]["sizes"]
+        times_p = data["exponential"][name][True]["times"]
+        ax.plot(sizes_p, times_p, marker=markers[name], color=colors[name],
+                linewidth=2, label=f"{name} (есть)")
+        sizes_m = data["exponential"][name][False]["sizes"]
+        times_m = data["exponential"][name][False]["times"]
+        ax.plot(sizes_m, times_m, marker=markers[name], color=colors[name],
+                linestyle="--", linewidth=1.5, alpha=0.7, label=f"{name} (нет)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("Размер массива n (log)", fontsize=11)
+    ax.set_ylabel("Медиана времени серии (с, log)", fontsize=11)
+    ax.set_title("Время серии поисков (200 ключей): Экспоненциальное распределение\n(замедление Interpolation)",
+                 fontsize=12, fontweight="bold")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend(fontsize=8, loc="upper left")
+
+    p2 = out_dir / "lab06_execution_time.png"
+    fig2.savefig(p2, dpi=160)
+    plt.close(fig2)
+    print(f"График времени сохранён: {p2}")
+
+
+def run_benchmarks(seed: int, out_dir: Path | None = None) -> dict:
+    """Выполнение замеров сравнений и времени, форматированный вывод и построение графиков."""
     rng = random.Random(seed)
+
+    # Структура для сбора данных
+    results: dict = {
+        dist: {
+            name: {
+                present: {"sizes": [], "cmps": [], "times": []}
+                for present in (True, False)
+            }
+            for name, _ in ALGORITHMS
+        }
+        for dist in ("uniform", "exponential")
+    }
+
     for distribution in ("uniform", "exponential"):
-        print(f"\nРаспределение: {distribution}")
+        print(f"\n{'='*75}")
+        print(f"Распределение данных: {distribution.upper()}")
+        print(f"{'='*75}")
+        print(f"{'n':>7} | {'ключ':<5} | {'алгоритм':<13} | {'сравнений':>11} | {'время серии, с':>14} | {'время 1 поиска, мкс':>19}")
+        print("-" * 75)
+
         for n in SIZES:
             a = make_dataset(n, distribution, rng)
             for present in (True, False):
@@ -178,24 +446,49 @@ def run_benchmarks(seed: int) -> None:
                 label = "есть" if present else "нет"
                 for name, fn in ALGORITHMS:
                     if name == "linear" and n > 30_000:
-                        continue  # линейный поиск: большие n занимают минуты
-                    print(f"  n={n:>7}  ключ {label:<4}  {name:<13}"
-                          f"  сравнений={mean_comparisons(fn, a, keys):>10.1f}"
-                          f"  t={bench(fn, a, keys):.6f} c")
-    # TODO: построить графики «среднее число сравнений от n» и «время от n»
-    # TODO: (matplotlib, отдельно для каждого распределения) и включить в отчёт;
-    # TODO: объяснить, когда интерполяционный поиск превосходит бинарный
-    # TODO: и на каких данных он деградирует к O(n).
+                        continue  # линейный поиск: большие n занимают ощутимое время
+
+                    cmps = mean_comparisons(fn, a, keys)
+                    t_series = bench(fn, a, keys)
+                    t_single_us = (t_series / N_KEYS) * 1e6
+
+                    results[distribution][name][present]["sizes"].append(n)
+                    results[distribution][name][present]["cmps"].append(cmps)
+                    results[distribution][name][present]["times"].append(t_series)
+
+                    print(f"{n:>7} | {label:<5} | {name:<13} | {cmps:>11.2f} | {t_series:>14.6f} | {t_single_us:>19.2f}")
+
+    if out_dir is not None:
+        plot_results(results, out_dir)
+
+    return results
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--variant", type=int, required=True, help="номер варианта")
+    ap.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="каталог для сохранения графиков (по умолчанию reports/images)",
+    )
     args = ap.parse_args()
     seed = 30 + args.variant
     random.seed(seed)
     self_check()
-    run_benchmarks(seed)
+
+    out_dir = args.out
+    if out_dir is None:
+        out_dir = Path(__file__).resolve().parent.parent.parent / "reports" / "images"
+
+    run_benchmarks(seed, out_dir)
 
 
 if __name__ == "__main__":
